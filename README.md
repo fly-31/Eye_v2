@@ -1,44 +1,46 @@
-# Eye Movement R² Calculator (v2)
+# Eye Tracking — MG Screening (two-flag detector)
 
 A pure browser app — **no install, no server, no Python**. All computation runs
-client-side; uploaded files never leave the machine.
+client-side; uploaded files never leave the machine. **Screening aid only — not
+a diagnosis.**
 
-## What it computes
-For each recording, `R² = (Pearson correlation of eye position vs. Time)²`,
-using the correct channel per direction:
+## What it does
+For each recording it measures how well the eye **follows the laser** (`Target`
+columns), using the correct channel per direction (Horizontal → LH/RH vs
+TargetH; Vertical → LV/RV vs TargetV), in 8 time-windows:
 
-- **Horizontal** categories → **LH** (Left), **RH** (Right)
-- **Vertical** categories → **LV** (Left), **RV** (Right)
+- `tracking_error` = RMS(eye − target) / RMS(target) — 0 = perfect, higher = worse
+- `gain` = std(eye)/std(target) — undershoot < 1
+- `corr²`, plus **fatigue** = 2nd-half − 1st-half change (error grows / gain shrinks)
 
-Two tables (and two Excel sheets):
+Features are averaged per patient, then **two independent flags** are raised:
 
-1. **Full recording** — Left / Right R² for every category.
-2. **Upper vs lower half** — each recording is split at its **time midpoint**;
-   "Upper" = first half, "Lower" = second half. Each patient gets 4 rows:
-   Left-Upper, Left-Lower, Right-Upper, Right-Lower.
+- **Flag 1 (transparent rule):** tracking deficit — `tracking_error > 0.86` OR `gain < 0.65`.
+- **Flag 2 (machine learning):** logistic-regression risk > 0.5 (model trained on
+  10 AChR+ vs 10 healthy; coefficients baked into `app.js`).
 
-Values shown to 4 significant figures. **R-type** columns are red. Missing
-categories are left blank. Patients are ordered by folder name (explorer order).
+Verdict: **both → 🟥 Very likely · one → 🟧 Possible · none → 🟩 Low.**
 
-## How to use
-- **Open `index.html`** (double-click), or host this folder on GitHub Pages.
-- Drag in `.csv` files **or** a `.zip` of them → tables appear → **Download
-  Excel spreadsheet**.
-- Top-left button toggles English / Korean.
+Output: one row per patient (tracking error, gain, fatigue, ML risk, the two
+flags, verdict), downloadable as Excel. Top-left button toggles English/Korean.
+
+## Performance on the 20 labeled patients (see `analysis/`)
+- Very likely (both flags): 8/10 AChR, 0/10 healthy.
+- Either flag (screen): 8/10 AChR, 1/10 healthy.
+- Two mild AChR track near-normally and are missed. Provisional — validate on new data.
 
 ## Files
 | File | Purpose |
 |------|---------|
 | `index.html` | The page. |
-| `app.js` | All logic: CSV/zip parsing, R² math, tables, Excel export, i18n. |
+| `app.js` | Features, both flags, ML model, table, Excel export, i18n. |
 | `styles.css` | Styling. |
-| `vendor/jszip.min.js` | Reads `.zip` uploads (bundled for offline use). |
-| `vendor/exceljs.min.js` | Writes styled `.xlsx` (bundled for offline use). |
+| `vendor/` | JSZip + ExcelJS (bundled for offline use). |
 
-## Note vs the old answer key
-This version uses **LV/RV for vertical** categories. The original
-`answer_key.xlsx` used LH/RH for everything, so vertical numbers here differ
-from that sheet by design (this is the corrected channel logic).
+## Retraining / updating the model
+The ML model lives in `../analysis/flag_pipeline.py`. Re-run it to get new
+`bias / weights / mean / std`, then paste them into the `MODEL` object in
+`app.js` and bump the `?v=` on the script/style links.
 
-After updating, bump the `?v=` on the `app.js` / `styles.css` links so browsers
-fetch the new files instead of a cached copy.
+> ⚠️ This detects a **tracking-deficit / fatigue pattern**, not AChR antibodies
+> specifically. Tuned on 20 patients — treat as a research screening signal.
