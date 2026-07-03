@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Eye Movement R² Calculator</title>
+  <title>Eye Tracking — MG Screening</title>
   <!-- Bump ?v= on each deploy so browsers fetch the new file instead of a cached copy. -->
   <link rel="stylesheet" href="styles.css?v=1" />
 </head>
@@ -12,10 +12,10 @@
 
   <main>
     <header>
-      <h1 data-i18n="title">👁️ Eye Movement R² Calculator</h1>
+      <h1 data-i18n="title">👁️ Eye Tracking — MG Screening</h1>
       <p class="subtitle" data-i18n-html="subtitle">
-        Upload eye-tracking recordings and download a spreadsheet of
-        <strong>R² values</strong> for every category.
+        Upload eye-tracking recordings; the tool flags patients whose eyes fail to
+        follow the laser or fatigue over time. <strong>Screening aid only.</strong>
       </p>
     </header>
 
@@ -28,10 +28,10 @@
           <code>Time(sec), LH, RH, LV, RV, TargetH, TargetV</code>.</li>
         <li data-i18n-html="step3">Upload the individual <code>.csv</code> files <strong>or</strong> a
           <code>.zip</code> containing them (one zip per patient works well).</li>
-        <li data-i18n-html="step4">Horizontal categories use LH/RH; vertical categories use LV/RV.</li>
+        <li data-i18n-html="step4">Horizontal uses LH/RH vs TargetH; vertical uses LV/RV vs TargetV.</li>
       </ol>
       <p class="warning" data-i18n-html="warning">
-        ⚠️ The calculator will not work if the files are not in the correct format.
+        ⚠️ Needs valid Target (laser) columns. Screening signal, not a diagnosis.
       </p>
     </details>
 
@@ -51,20 +51,13 @@
       <button id="downloadBtn" class="primary" disabled data-i18n="downloadBtn">
         ⬇️ Download Excel spreadsheet
       </button>
-      <span id="redNote" class="red-note" style="display:none" data-i18n-html="redNote">
-        🔴 Red columns are <strong>R-type</strong> categories.
-      </span>
     </div>
 
-    <h2 id="fullHeading" class="table-heading" style="display:none" data-i18n="fullHeading">
-      Full recording
+    <h2 id="resultsHeading" class="table-heading" style="display:none" data-i18n="resultsHeading">
+      Screening results
     </h2>
-    <div id="fullResults" class="results"></div>
-
-    <h2 id="halvesHeading" class="table-heading" style="display:none" data-i18n="halvesHeading">
-      Upper vs lower half
-    </h2>
-    <div id="halvesResults" class="results"></div>
+    <p id="legend" class="legend" style="display:none" data-i18n-html="legend"></p>
+    <div id="results" class="results"></div>
   </main>
 
   <!-- Local copies (offline use). If missing/blocked, fall back to a CDN. -->
