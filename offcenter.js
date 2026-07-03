@@ -37,11 +37,12 @@ const I18N = {
   en: {
     langButton: "한국어",
     navLabel: "🩺 MG screening →",
-    title: "👁️ Off-Center Eye Movement R²",
+    title: "👁️ Off-Center Eye Movement R² (tired eyes)",
     subtitle:
-      "Upload eye-tracking recordings; the tool keeps only the <strong>off-center</strong> " +
+      "Upload eye-tracking recordings; the tool uses only the <strong>second half</strong> " +
+      "of each recording (tired eyes) and, within it, keeps only the <strong>off-center</strong> " +
       "samples (eye position <strong>above +2</strong> or <strong>below −2</strong>, " +
-      "ignoring the ±2 center) and computes <strong>R² vs. time</strong> for each group. " +
+      "ignoring the ±2 center), then computes <strong>R² vs. time</strong> for each group. " +
       "Everything runs in your browser; nothing is uploaded to a server.",
     infoSummary: "ℹ️ How to use / required data format",
     step1:
@@ -65,7 +66,7 @@ const I18N = {
     dropSub: "or click to browse",
     downloadBtn: "⬇️ Download Excel spreadsheet",
     redNote: "🔴 Red columns are <strong>R-type</strong> categories.",
-    regionHeading: "Off-center R² (Above = eye > +2, Below = eye < −2, vs. time)",
+    regionHeading: "Off-center R² — second half only (Above = eye > +2, Below = eye < −2, vs. time)",
     colPatient: "Patient",
     colEye: "Eye",
     colRegion: "Region",
@@ -87,9 +88,10 @@ const I18N = {
   ko: {
     langButton: "English",
     navLabel: "🩺 MG 선별 →",
-    title: "👁️ 중심 이탈 안구 운동 R²",
+    title: "👁️ 중심 이탈 안구 운동 R² (피로한 눈)",
     subtitle:
-      "안구 추적 기록을 업로드하면 <strong>중심을 벗어난</strong> 샘플" +
+      "안구 추적 기록을 업로드하면 각 기록의 <strong>후반부</strong>(피로한 눈)만 사용하고, " +
+      "그 안에서 <strong>중심을 벗어난</strong> 샘플" +
       "(눈 위치가 <strong>+2 초과</strong> 또는 <strong>−2 미만</strong>, ±2 중심 범위는 제외)만 " +
       "남겨 각 그룹의 <strong>시간 대비 R²</strong>를 계산합니다. 모든 계산은 브라우저에서 " +
       "실행되며 서버로 전송되지 않습니다.",
@@ -115,7 +117,7 @@ const I18N = {
     dropSub: "또는 클릭하여 파일 선택",
     downloadBtn: "⬇️ Excel 스프레드시트 다운로드",
     redNote: "🔴 빨간색 열은 <strong>R 유형</strong> 카테고리입니다.",
-    regionHeading: "중심 이탈 R² (Above = 눈 > +2, Below = 눈 < −2, 시간 대비)",
+    regionHeading: "중심 이탈 R² — 후반부만 (Above = 눈 > +2, Below = 눈 < −2, 시간 대비)",
     colPatient: "환자",
     colEye: "눈",
     colRegion: "구간",
@@ -263,11 +265,23 @@ function rSquaredWhere(x, y, keep) {
   return r * r;
 }
 
-/** {above, below} R² for one channel: eye vs time over off-center samples. */
+/** {above, below} R² for one channel: eye vs time over off-center samples,
+ *  using ONLY the second half of the recording (by time) — "tired eyes".
+ *  The first half is discarded before splitting into Above (+2) / Below (-2).
+ */
 function computeChannel(time, ch) {
+  let tmin = Infinity, tmax = -Infinity;
+  for (let i = 0; i < time.length; i++) {
+    if (Number.isFinite(time[i]) && Number.isFinite(ch[i])) {
+      if (time[i] < tmin) tmin = time[i];
+      if (time[i] > tmax) tmax = time[i];
+    }
+  }
+  if (!Number.isFinite(tmin)) return { above: NaN, below: NaN };
+  const mid = (tmin + tmax) / 2; // keep only samples after the midpoint
   return {
-    above: rSquaredWhere(time, ch, (tt, ee) => ee > CENTER),
-    below: rSquaredWhere(time, ch, (tt, ee) => ee < -CENTER),
+    above: rSquaredWhere(time, ch, (tt, ee) => tt > mid && ee > CENTER),
+    below: rSquaredWhere(time, ch, (tt, ee) => tt > mid && ee < -CENTER),
   };
 }
 
