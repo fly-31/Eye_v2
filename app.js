@@ -49,6 +49,7 @@ function channelsFor(direction) {
 const I18N = {
   en: {
     langButton: "한국어",
+    navLabel: "📊 Off-center R² →",
     title: "👁️ Eye Tracking — MG Screening",
     subtitle:
       "Upload eye-tracking recordings; the tool measures how well each eye " +
@@ -106,6 +107,7 @@ const I18N = {
   },
   ko: {
     langButton: "English",
+    navLabel: "📊 중심 이탈 R² →",
     title: "👁️ 안구 추적 — MG 선별",
     subtitle:
       "안구 추적 기록을 업로드하면 각 눈이 <strong>레이저를 얼마나 잘 따라가는지</strong>와 " +

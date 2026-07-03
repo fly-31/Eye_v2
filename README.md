@@ -1,8 +1,21 @@
-# Eye Tracking — MG Screening (two-flag detector)
+# Eye Tracking tools (Eye_v2)
 
 A pure browser app — **no install, no server, no Python**. All computation runs
-client-side; uploaded files never leave the machine. **Screening aid only — not
-a diagnosis.**
+client-side; uploaded files never leave the machine. Two pages, linked by the
+top-right button:
+
+- **`index.html` — MG Screening** (two-flag detector). *Screening aid only — not a diagnosis.*
+- **`offcenter.html` — Off-Center R²**: keeps only samples where the eye is
+  **off-center** (position > +2 or < −2, ignoring the ±2 center) and computes
+  **R² of eye vs. time** for each group. Output: 4 rows per patient
+  (Left/Right × Above/Below) × categories, downloadable as Excel.
+
+Both pages share the design, Korean/English toggle, upload, red R-type columns,
+folder-name sorting, and offline vendored libraries.
+
+---
+
+## MG Screening (index.html)
 
 ## What it does
 For each recording it measures how well the eye **follows the laser** (`Target`
