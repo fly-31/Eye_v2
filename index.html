@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eye Movement R² Calculator</title>
+  <!-- Bump ?v= on each deploy so browsers fetch the new file instead of a cached copy. -->
+  <link rel="stylesheet" href="styles.css?v=1" />
+</head>
+<body>
+  <button id="langToggle" class="lang-toggle" type="button">한국어</button>
+
+  <main>
+    <header>
+      <h1 data-i18n="title">👁️ Eye Movement R² Calculator</h1>
+      <p class="subtitle" data-i18n-html="subtitle">
+        Upload eye-tracking recordings and download a spreadsheet of
+        <strong>R² values</strong> for every category.
+      </p>
+    </header>
+
+    <details class="info">
+      <summary data-i18n="infoSummary">ℹ️ How to use / required data format</summary>
+      <ol>
+        <li data-i18n-html="step1">Your files must match the column format in this template:
+          <a id="templateLink" href="#" target="_blank" rel="noopener">Example Google Sheet</a>.</li>
+        <li data-i18n-html="step2">Each recording is a <code>.csv</code> with columns
+          <code>Time(sec), LH, RH, LV, RV, TargetH, TargetV</code>.</li>
+        <li data-i18n-html="step3">Upload the individual <code>.csv</code> files <strong>or</strong> a
+          <code>.zip</code> containing them (one zip per patient works well).</li>
+        <li data-i18n-html="step4">Horizontal categories use LH/RH; vertical categories use LV/RV.</li>
+      </ol>
+      <p class="warning" data-i18n-html="warning">
+        ⚠️ The calculator will not work if the files are not in the correct format.
+      </p>
+    </details>
+
+    <section id="dropZone" class="dropzone" tabindex="0">
+      <input id="fileInput" type="file" accept=".csv,.zip" multiple hidden />
+      <div class="dz-inner">
+        <div class="dz-icon">⬆️</div>
+        <p data-i18n-html="dropTitle"><strong>Drag &amp; drop</strong> your files here</p>
+        <p class="dz-sub" data-i18n="dropSub">or click to browse</p>
+      </div>
+    </section>
+
+    <div id="status" class="status"></div>
+    <div id="warnings"></div>
+
+    <div class="actions">
+      <button id="downloadBtn" class="primary" disabled data-i18n="downloadBtn">
+        ⬇️ Download Excel spreadsheet
+      </button>
+      <span id="redNote" class="red-note" style="display:none" data-i18n-html="redNote">
+        🔴 Red columns are <strong>R-type</strong> categories.
+      </span>
+    </div>
+
+    <h2 id="fullHeading" class="table-heading" style="display:none" data-i18n="fullHeading">
+      Full recording
+    </h2>
+    <div id="fullResults" class="results"></div>
+
+    <h2 id="halvesHeading" class="table-heading" style="display:none" data-i18n="halvesHeading">
+      Upper vs lower half
+    </h2>
+    <div id="halvesResults" class="results"></div>
+  </main>
+
+  <!-- Local copies (offline use). If missing/blocked, fall back to a CDN. -->
+  <script src="vendor/jszip.min.js"></script>
+  <script>
+    window.JSZip || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"><\/script>');
+  </script>
+  <script src="vendor/exceljs.min.js"></script>
+  <script>
+    window.ExcelJS || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"><\/script>');
+  </script>
+  <script src="app.js?v=1"></script>
+</body>
+</html>

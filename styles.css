@@ -1,0 +1,170 @@
+:root {
+  --bg: #f6f8fb;
+  --card: #ffffff;
+  --border: #d9e0ea;
+  --text: #1f2733;
+  --muted: #64748b;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --red: #d00000;
+  --ok: #15803d;
+  --warn-bg: #fff7ed;
+  --warn-border: #fdba74;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Malgun Gothic", "맑은 고딕", sans-serif;
+  line-height: 1.5;
+}
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+
+/* Language toggle (top-left) */
+.lang-toggle {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 10;
+  background: var(--card);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: .4rem .9rem;
+  font-size: .9rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+  transition: background .15s, color .15s;
+}
+.lang-toggle:hover { background: var(--accent); color: #fff; }
+
+@media (max-width: 720px) {
+  header { padding-top: 2.5rem; }
+}
+
+h1 { margin: 0 0 .25rem; font-size: 1.9rem; }
+.subtitle { color: var(--muted); margin: .25rem 0 1.5rem; max-width: 72ch; }
+
+.table-heading {
+  margin: 2rem 0 .25rem;
+  font-size: 1.15rem;
+  padding-top: 1rem;
+  border-top: 2px solid var(--border);
+}
+
+/* Info panel */
+.info {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: .75rem 1rem;
+  margin-bottom: 1.25rem;
+}
+.info summary { cursor: pointer; font-weight: 600; }
+.info ol { margin: .75rem 0; padding-left: 1.25rem; }
+.info code {
+  background: #eef2f7;
+  padding: .1rem .35rem;
+  border-radius: 4px;
+  font-size: .85em;
+}
+.warning {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: 8px;
+  padding: .6rem .8rem;
+  margin: .5rem 0 0;
+}
+
+/* Drop zone */
+.dropzone {
+  background: var(--card);
+  border: 2px dashed var(--border);
+  border-radius: 14px;
+  padding: 2.5rem 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  outline: none;
+}
+.dropzone:hover, .dropzone:focus, .dropzone.hover {
+  border-color: var(--accent);
+  background: #f0f6ff;
+}
+.dz-icon { font-size: 2.2rem; }
+.dz-sub { color: var(--muted); font-size: .9rem; margin-top: .25rem; }
+
+/* Status + warnings */
+.status { margin: 1.1rem 0 .25rem; min-height: 1.4rem; font-weight: 600; }
+.status .ok { color: var(--ok); }
+.status .error, .error { color: var(--red); }
+.warn {
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: 8px;
+  padding: .45rem .7rem;
+  margin: .35rem 0;
+  font-size: .9rem;
+}
+
+/* Actions */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0;
+  flex-wrap: wrap;
+}
+button.primary {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: .7rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+}
+button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+button.primary:disabled { background: #9db4e0; cursor: not-allowed; }
+.red-note { color: var(--muted); font-size: .9rem; }
+
+/* Results tables */
+.results { overflow-x: auto; margin-top: .5rem; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  background: var(--card);
+  border-radius: 10px;
+  overflow: hidden;
+  font-size: .9rem;
+}
+th, td {
+  border: 1px solid var(--border);
+  padding: .45rem .6rem;
+  text-align: right;
+  white-space: nowrap;
+}
+th {
+  background: #f2f5f9;
+  position: sticky;
+  top: 0;
+  text-align: center;
+}
+td.patient { text-align: left; font-weight: 600; }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+.red { color: var(--red) !important; }
+tbody tr:hover td { background: #f0f6ff; }
+/* Divider between patient groups in the halves table */
+tr.group-top td { border-top: 2px solid #b9c4d4; }
