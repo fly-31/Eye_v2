@@ -135,11 +135,15 @@ const I18N = {
     dropSub: "or click to browse",
     downloadBtn: "⬇️ Download Excel spreadsheet",
     legend:
-      "🟥 <strong>Very likely</strong> = both flags · 🟧 <strong>Possible</strong> = one flag · " +
-      "🟩 <strong>Low</strong> = neither. Flag 1 = tracking deficit (rule); Flag 2 = ML risk.",
+      "🟥 <strong>MG</strong> = index &gt; 6 · 🟧 <strong>Risk</strong> = index 4–6 · " +
+      "🟩 <strong>Low</strong> = index &lt; 4. &nbsp;<strong>track_sus</strong> = tracking-deficit rule flag · " +
+      "<strong>Hong's Math</strong> = # horizontal off-center SD cells over 3 · " +
+      "<strong>Index</strong> = Hong's Math ÷ 2 + ML-risk% ÷ 10.",
     resultsHeading: "Screening results (one row per patient)",
     colPatient: "Patient",
-    colErr: "Tracking error",
+    colErr: "track_err",
+    colTrackSus: "track_sus",
+    colHongMath: "Hong's Math",
     colGain: "Gain",
     colFatigue: "Fatigue (Δgain)",
     colRisk: "ML risk",
@@ -148,6 +152,8 @@ const I18N = {
     colVerdict: "Verdict",
     colSdFlag: "SD flag",
     colIndex: "Index",
+    vMG: "MG",
+    vRisk: "Risk",
     colEye: "Eye",
     colRegion: "Region",
     eyeLeft: "Left",
@@ -163,6 +169,15 @@ const I18N = {
     vPossible: "Possible",
     vLow: "Low",
     vNoData: "No laser data",
+    contextHeading: "About this test",
+    contextText:
+      "In this exam the patient follows a laser dot that jumps left/right and up/down " +
+      "while a camera records where each eye actually looks. A healthy brain keeps the " +
+      "eyes locked onto the dot; when eye-muscle control weakens (as in myasthenia " +
+      "gravis) the eyes lag, undershoot, or drift — especially as they tire. This tool " +
+      "measures how closely each eye follows the laser and how much it wanders when held " +
+      "off-center, then flags patterns that look suspicious. It is a screening aid to help " +
+      "spot patients who may need further testing — not a diagnosis.",
     statusProcessing: "Processing…",
     statusProcessed: (n, p) => `Processed ${n} recording(s) across ${p} patient(s).`,
     statusNoValid: "No valid recordings found. Check the file format (need Target columns).",
@@ -204,11 +219,15 @@ const I18N = {
     dropSub: "또는 클릭하여 파일 선택",
     downloadBtn: "⬇️ Excel 스프레드시트 다운로드",
     legend:
-      "🟥 <strong>매우 가능성 높음</strong> = 두 플래그 · 🟧 <strong>가능성 있음</strong> = 한 플래그 · " +
-      "🟩 <strong>낮음</strong> = 없음. 플래그1 = 추적 결함(규칙), 플래그2 = ML 위험도.",
+      "🟥 <strong>MG</strong> = 지수 &gt; 6 · 🟧 <strong>Risk</strong> = 지수 4–6 · " +
+      "🟩 <strong>Low</strong> = 지수 &lt; 4. &nbsp;<strong>track_sus</strong> = 추적 결함 규칙 플래그 · " +
+      "<strong>Hong's Math</strong> = SD가 3을 넘는 수평 중심 이탈 셀 수 · " +
+      "<strong>지수</strong> = Hong's Math ÷ 2 + ML 위험도% ÷ 10.",
     resultsHeading: "선별 결과 (환자당 한 행)",
     colPatient: "환자",
-    colErr: "추적 오차",
+    colErr: "track_err",
+    colTrackSus: "track_sus",
+    colHongMath: "Hong's Math",
     colGain: "게인",
     colFatigue: "피로 (Δ게인)",
     colRisk: "ML 위험도",
@@ -217,6 +236,8 @@ const I18N = {
     colVerdict: "판정",
     colSdFlag: "SD 플래그",
     colIndex: "지수",
+    vMG: "MG",
+    vRisk: "Risk",
     colEye: "눈",
     colRegion: "구간",
     eyeLeft: "좌안",
@@ -232,6 +253,14 @@ const I18N = {
     vPossible: "가능성 있음",
     vLow: "낮음",
     vNoData: "레이저 데이터 없음",
+    contextHeading: "이 검사에 대하여",
+    contextText:
+      "이 검사에서는 환자가 좌우·상하로 움직이는 레이저 점을 따라가고, 카메라가 각 눈이 " +
+      "실제로 어디를 보는지 기록합니다. 건강한 뇌는 눈을 점에 고정시키지만, 근무력증처럼 안구 " +
+      "근육 조절이 약해지면 눈이 지연되거나 덜 움직이거나 흔들립니다 — 특히 피로해질수록 " +
+      "그렇습니다. 이 도구는 각 눈이 레이저를 얼마나 잘 따라가는지, 그리고 중심을 벗어났을 때 " +
+      "얼마나 흔들리는지를 측정하여 의심스러운 패턴을 표시합니다. 추가 검사가 필요한 환자를 찾는 " +
+      "데 도움을 주는 선별 보조 도구이며 진단이 아닙니다.",
     statusProcessing: "처리 중…",
     statusProcessed: (n, p) => `${n}개의 기록을 ${p}명의 환자에 대해 처리했습니다.`,
     statusNoValid: "유효한 기록을 찾을 수 없습니다. 파일 형식(Target 열 필요)을 확인하세요.",
@@ -498,14 +527,14 @@ function buildResults(results) {
     for (const k of MODEL.order) f[k] = nanmean(feats.map((x) => x[k]));
     const prob = logisticProb(f);
     const hasData = Number.isFinite(f.track_err) && Number.isFinite(f.gain);
-    const flag1 = hasData && (f.track_err > RULE.teThr || f.gain < RULE.gainThr);
-    const flag2 = Number.isFinite(prob) && prob > 0.5;
-    let verdict = "vNoData";
-    if (hasData) verdict = flag1 && flag2 ? "vVeryLikely" : (flag1 || flag2 ? "vPossible" : "vLow");
-    // SD flag + index (index = hCount/2 + ML-risk% / 10; e.g. 33% -> 3.3)
-    const sdFlag = hCount > SD_FLAG_MIN;
+    // track_sus = tracking-deficit rule flag (formerly "flag1")
+    const trackSus = hasData && (f.track_err > RULE.teThr || f.gain < RULE.gainThr);
+    // index = Hong's Math / 2 + ML-risk% / 10  (e.g. 33% -> 3.3)
     const index = hCount / 2 + (Number.isFinite(prob) ? prob * 10 : 0);
-    rows.push({ patient, sortKey, ...f, prob, flag1, flag2, verdict, hCount, sdFlag, index });
+    // verdict from the index: > 6 -> MG, 4-6 -> Risk, < 4 -> Low
+    let verdict = index > 6 ? "vMG" : (index >= 4 ? "vRisk" : "vLow");
+    if (!hasData && hCount === 0) verdict = "vNoData";
+    rows.push({ patient, sortKey, ...f, prob, trackSus, verdict, hCount, index });
   }
   rows.sort((a, b) => a.sortKey.localeCompare(b.sortKey, undefined, { numeric: true }));
   return rows;
@@ -559,23 +588,20 @@ const yn = (b) => (b ? "✓" : "–");
 async function toExcelBlob(rows, sdTable) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("MG screening");
-  const headers = ["Patient", "track_err", "gain", "corr2", "err_drop", "gain_drop",
-                   "ML risk", "Flag1 rule", "Flag2 ML", "Verdict", "Horiz SD>3", "SD flag", "Index"];
+  const headers = ["Patient", "track_err", "track_sus", "Hong's Math", "Index", "Verdict"];
   ws.addRow(headers).eachCell((cell) => {
     cell.font = { bold: true };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F2F2" } };
     cell.alignment = { horizontal: "center" };
   });
-  const vText = { vVeryLikely: "Very likely", vPossible: "Possible", vLow: "Low", vNoData: "No laser data" };
-  const vFill = { vVeryLikely: "FFF8CBCB", vPossible: "FFFCE7C6", vLow: "FFD8EFD8", vNoData: "FFEDEDED" };
+  const vText = { vMG: "MG", vRisk: "Risk", vLow: "Low", vNoData: "No data" };
+  const vFill = { vMG: "FFF8CBCB", vRisk: "FFFCE7C6", vLow: "FFD8EFD8", vNoData: "FFEDEDED" };
   for (const r of rows) {
-    const row = ws.addRow([r.patient, r.track_err, r.gain, r.corr2, r.err_drop, r.gain_drop,
-                           r.prob, r.flag1 ? "YES" : "no", r.flag2 ? "YES" : "no", vText[r.verdict],
-                           r.hCount, r.sdFlag ? "YES" : "no", r.index]);
-    for (let i = 2; i <= 6; i++) row.getCell(i).numFmt = "0.0000";
-    row.getCell(7).numFmt = "0%";
-    row.getCell(10).fill = { type: "pattern", pattern: "solid", fgColor: { argb: vFill[r.verdict] } };
-    row.getCell(13).numFmt = "0.0";
+    const row = ws.addRow([r.patient, r.track_err, r.trackSus ? "YES" : "no",
+                           r.hCount, r.index, vText[r.verdict]]);
+    row.getCell(2).numFmt = "0.0000";
+    row.getCell(5).numFmt = "0.0";
+    row.getCell(6).fill = { type: "pattern", pattern: "solid", fgColor: { argb: vFill[r.verdict] } };
   }
   headers.forEach((n, i) => (ws.getColumn(i + 1).width = Math.max(n.length, 10) + 2));
   ws.views = [{ state: "frozen", ySplit: 1 }];
@@ -629,22 +655,18 @@ function renderResults(rows) {
   }
   els.resultsHeading.style.display = "block";
   els.legend.style.display = "block";
-  const H = [t("colPatient"), t("colErr"), t("colGain"), t("colFatigue"), t("colRisk"),
-            t("colFlag1"), t("colFlag2"), t("colVerdict"), t("colSdFlag"), t("colIndex")];
+  const H = [t("colPatient"), t("colErr"), t("colTrackSus"), t("colHongMath"),
+            t("colIndex"), t("colVerdict")];
   let html = "<table><thead><tr>" + H.map((h) => `<th>${h}</th>`).join("") + "</tr></thead><tbody>";
-  const cls = { vVeryLikely: "v-high", vPossible: "v-mid", vLow: "v-low", vNoData: "v-none" };
+  const cls = { vMG: "v-high", vRisk: "v-mid", vLow: "v-low", vNoData: "v-none" };
   for (const r of rows) {
     html += `<tr>`
       + `<td class="patient">${r.patient}</td>`
       + `<td>${fmt3(r.track_err)}</td>`
-      + `<td>${fmt3(r.gain)}</td>`
-      + `<td>${fmt3(r.gain_drop)}</td>`
-      + `<td>${pct(r.prob)}</td>`
-      + `<td>${yn(r.flag1)}</td>`
-      + `<td>${yn(r.flag2)}</td>`
-      + `<td class="verdict ${cls[r.verdict]}">${t(r.verdict)}</td>`
-      + `<td${r.sdFlag ? ' class="sd-flag"' : ""}>${yn(r.sdFlag)} (${r.hCount})</td>`
+      + `<td>${yn(r.trackSus)}</td>`
+      + `<td>${r.hCount}</td>`
       + `<td>${r.index.toFixed(1)}</td>`
+      + `<td class="verdict ${cls[r.verdict]}">${t(r.verdict)}</td>`
       + `</tr>`;
   }
   els.results.innerHTML = html + "</tbody></table>";
