@@ -136,13 +136,13 @@ const I18N = {
     downloadBtn: "⬇️ Download Excel spreadsheet",
     legend:
       "🟥 <strong>MG</strong> = index &gt; 6 · 🟧 <strong>Risk</strong> = index 4–6 · " +
-      "🟩 <strong>Low</strong> = index &lt; 4. &nbsp;<strong>track_sus</strong> = tracking-deficit rule flag · " +
+      "🟩 <strong>Low</strong> = index &lt; 4. &nbsp;<strong>Approximation Math</strong> = tracking-deficit rule flag · " +
       "<strong>Hong's Math</strong> = # horizontal off-center SD cells over 3 · " +
       "<strong>Index</strong> = Hong's Math ÷ 2 + ML-risk% ÷ 10.",
     resultsHeading: "Screening results (one row per patient)",
     colPatient: "Patient",
     colErr: "track_err",
-    colTrackSus: "track_sus",
+    colTrackSus: "Approximation Math",
     colHongMath: "Hong's Math",
     colGain: "Gain",
     colFatigue: "Fatigue (Δgain)",
@@ -220,13 +220,13 @@ const I18N = {
     downloadBtn: "⬇️ Excel 스프레드시트 다운로드",
     legend:
       "🟥 <strong>MG</strong> = 지수 &gt; 6 · 🟧 <strong>Risk</strong> = 지수 4–6 · " +
-      "🟩 <strong>Low</strong> = 지수 &lt; 4. &nbsp;<strong>track_sus</strong> = 추적 결함 규칙 플래그 · " +
+      "🟩 <strong>Low</strong> = 지수 &lt; 4. &nbsp;<strong>Approximation Math</strong> = 추적 결함 규칙 플래그 · " +
       "<strong>Hong's Math</strong> = SD가 3을 넘는 수평 중심 이탈 셀 수 · " +
       "<strong>지수</strong> = Hong's Math ÷ 2 + ML 위험도% ÷ 10.",
     resultsHeading: "선별 결과 (환자당 한 행)",
     colPatient: "환자",
     colErr: "track_err",
-    colTrackSus: "track_sus",
+    colTrackSus: "Approximation Math",
     colHongMath: "Hong's Math",
     colGain: "게인",
     colFatigue: "피로 (Δ게인)",
@@ -527,7 +527,7 @@ function buildResults(results) {
     for (const k of MODEL.order) f[k] = nanmean(feats.map((x) => x[k]));
     const prob = logisticProb(f);
     const hasData = Number.isFinite(f.track_err) && Number.isFinite(f.gain);
-    // track_sus = tracking-deficit rule flag (formerly "flag1")
+    // Approximation Math = tracking-deficit rule flag (formerly "flag1")
     const trackSus = hasData && (f.track_err > RULE.teThr || f.gain < RULE.gainThr);
     // index = Hong's Math / 2 + ML-risk% / 10  (e.g. 33% -> 3.3)
     const index = hCount / 2 + (Number.isFinite(prob) ? prob * 10 : 0);
@@ -588,7 +588,7 @@ const yn = (b) => (b ? "✓" : "–");
 async function toExcelBlob(rows, sdTable) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("MG screening");
-  const headers = ["Patient", "track_err", "track_sus", "Hong's Math", "Index", "Verdict"];
+  const headers = ["Patient", "track_err", "Approximation Math", "Hong's Math", "Index", "Verdict"];
   ws.addRow(headers).eachCell((cell) => {
     cell.font = { bold: true };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F2F2" } };
