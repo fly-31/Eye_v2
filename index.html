@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Eye Tracking — MG Screening</title>
   <!-- Bump ?v= on each deploy so browsers fetch the new file instead of a cached copy. -->
-  <link rel="stylesheet" href="styles.css?v=2" />
+  <link rel="stylesheet" href="styles.css?v=3" />
 </head>
 <body>
   <button id="langToggle" class="lang-toggle" type="button">한국어</button>
@@ -59,6 +59,12 @@
     </h2>
     <p id="legend" class="legend" style="display:none" data-i18n-html="legend"></p>
     <div id="results" class="results"></div>
+
+    <button id="sdToggle" class="toggle-btn" type="button" style="display:none">▼ Show off-center SD table</button>
+    <h2 id="sdHeading" class="table-heading" style="display:none" data-i18n="sdTableHeading">
+      Off-center SD
+    </h2>
+    <div id="sdResults" class="results" style="display:none"></div>
   </main>
 
   <!-- Local copies (offline use). If missing/blocked, fall back to a CDN. -->
@@ -70,6 +76,6 @@
   <script>
     window.ExcelJS || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"><\/script>');
   </script>
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

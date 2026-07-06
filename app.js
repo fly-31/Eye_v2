@@ -42,6 +42,61 @@ function channelsFor(direction) {
     : { left: "LH", right: "RH", tgt: "TargetH" };
 }
 
+// --- Off-center SD chart (second half, |eye| > 2) + SD flag / index ---
+const FREQUENCIES = ["0.5", "0.75", "1"];
+const CENTER = 2;        // |eye| <= CENTER is "centered" and excluded
+const SD_THRESHOLD = 3;  // a horizontal off-center SD cell "counts" if it exceeds this
+const SD_FLAG_MIN = 4;   // SD flag if MORE THAN this many horizontal cells exceed
+
+function parseCategory(name) {
+  const base = baseName(name);
+  let direction;
+  if (/horizontal/i.test(base)) direction = "Horizontal";
+  else if (/vertical/i.test(base)) direction = "Vertical";
+  else return null;
+  const freqMatch = base.match(/(\d+(?:\.\d+)?)\s*Hz/i);
+  if (!freqMatch) return null;
+  const typeMatch = base.match(/Saccade\s+([BR])\b/i);
+  const type = typeMatch ? typeMatch[1].toUpperCase() : "B";
+  return { direction, frequency: freqMatch[1], type, label: `${direction} ${freqMatch[1]}Hz ${type}` };
+}
+
+function categorySortKey(c) {
+  return [
+    c.type === "B" ? 0 : 1,
+    DIRECTIONS.indexOf(c.direction) >= 0 ? DIRECTIONS.indexOf(c.direction) : 99,
+    FREQUENCIES.indexOf(c.frequency) >= 0 ? FREQUENCIES.indexOf(c.frequency) : 99,
+  ];
+}
+
+/** Population std of eye values y over points where finite AND keep(x, y). */
+function stdWhere(x, y, keep) {
+  let n = 0, s = 0, s2 = 0;
+  for (let i = 0; i < y.length; i++) {
+    if (Number.isFinite(x[i]) && Number.isFinite(y[i]) && keep(x[i], y[i])) {
+      n++; s += y[i]; s2 += y[i] * y[i];
+    }
+  }
+  if (n < 2) return NaN;
+  return Math.sqrt(Math.max(s2 / n - (s / n) ** 2, 0));
+}
+
+/** {above, below} SD of eye position over off-center samples in the 2nd half. */
+function computeOffCenterSD(time, ch) {
+  let tmin = Infinity, tmax = -Infinity;
+  for (let i = 0; i < time.length; i++)
+    if (Number.isFinite(time[i]) && Number.isFinite(ch[i])) {
+      if (time[i] < tmin) tmin = time[i];
+      if (time[i] > tmax) tmax = time[i];
+    }
+  if (!Number.isFinite(tmin)) return { above: NaN, below: NaN };
+  const mid = (tmin + tmax) / 2;
+  return {
+    above: stdWhere(time, ch, (tt, ee) => tt > mid && ee > CENTER),
+    below: stdWhere(time, ch, (tt, ee) => tt > mid && ee < -CENTER),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Internationalization (English / Korean)
 // ---------------------------------------------------------------------------
@@ -49,7 +104,7 @@ function channelsFor(direction) {
 const I18N = {
   en: {
     langButton: "한국어",
-    navLabel: "📊 Off-center R² →",
+    navLabel: "📊 Off-center SD →",
     title: "👁️ Eye Tracking — MG Screening",
     subtitle:
       "Upload eye-tracking recordings; the tool measures how well each eye " +
@@ -91,6 +146,19 @@ const I18N = {
     colFlag1: "Flag 1 (rule)",
     colFlag2: "Flag 2 (ML)",
     colVerdict: "Verdict",
+    colSdFlag: "SD flag",
+    colIndex: "Index",
+    colEye: "Eye",
+    colRegion: "Region",
+    eyeLeft: "Left",
+    eyeRight: "Right",
+    regionAbove: "Above +2",
+    regionBelow: "Below −2",
+    dirHorizontal: "Horizontal",
+    dirVertical: "Vertical",
+    sdToggleShow: "▼ Show off-center SD table",
+    sdToggleHide: "▲ Hide off-center SD table",
+    sdTableHeading: "Off-center SD — second half (Above = eye > +2, Below = eye < −2)",
     vVeryLikely: "Very likely",
     vPossible: "Possible",
     vLow: "Low",
@@ -107,7 +175,7 @@ const I18N = {
   },
   ko: {
     langButton: "English",
-    navLabel: "📊 중심 이탈 R² →",
+    navLabel: "📊 중심 이탈 표준편차 →",
     title: "👁️ 안구 추적 — MG 선별",
     subtitle:
       "안구 추적 기록을 업로드하면 각 눈이 <strong>레이저를 얼마나 잘 따라가는지</strong>와 " +
@@ -147,6 +215,19 @@ const I18N = {
     colFlag1: "플래그1 (규칙)",
     colFlag2: "플래그2 (ML)",
     colVerdict: "판정",
+    colSdFlag: "SD 플래그",
+    colIndex: "지수",
+    colEye: "눈",
+    colRegion: "구간",
+    eyeLeft: "좌안",
+    eyeRight: "우안",
+    regionAbove: "+2 초과",
+    regionBelow: "−2 미만",
+    dirHorizontal: "수평",
+    dirVertical: "수직",
+    sdToggleShow: "▼ 중심 이탈 SD 표 보기",
+    sdToggleHide: "▲ 중심 이탈 SD 표 숨기기",
+    sdTableHeading: "중심 이탈 SD — 후반부 (Above = 눈 > +2, Below = 눈 < −2)",
     vVeryLikely: "매우 가능성 높음",
     vPossible: "가능성 있음",
     vLow: "낮음",
@@ -327,8 +408,8 @@ async function processUploads(files) {
   const warnings = [];
 
   const handleCsv = (name, patientSource, u8) => {
-    const direction = directionOf(baseName(name));
-    if (!direction) { warn(warnings, "warnBadDir", name); return; }
+    const category = parseCategory(name);
+    if (!category) { warn(warnings, "warnBadDir", name); return; }
     let ch;
     try {
       ch = readChannels(u8);
@@ -336,9 +417,19 @@ async function processUploads(files) {
       warn(warnings, "warnInvalid", name, err.message);
       return;
     }
-    const feats = fileFeatures(ch, direction);
+    const feats = fileFeatures(ch, category.direction);
     if (feats.length === 0) { warn(warnings, "warnNoTarget", name); return; }
-    results.push({ patient: parsePatient(patientSource), sortKey: patientSortKey(patientSource), feats });
+    const map = channelsFor(category.direction);
+    const time = ch["Time(sec)"];
+    const sd = {
+      Left: computeOffCenterSD(time, ch[map.left]),
+      Right: computeOffCenterSD(time, ch[map.right]),
+    };
+    results.push({
+      patient: parsePatient(patientSource),
+      sortKey: patientSortKey(patientSource),
+      feats, category, sd,
+    });
   };
 
   for (const f of files) {
@@ -384,14 +475,25 @@ function logisticProb(feat) {
 }
 
 function buildResults(results) {
-  const byPatient = new Map(); // patient -> {sortKey, feats:[...]}
+  // patient -> {sortKey, feats, hCount}. hCount = horizontal off-center SD
+  // cells (3 freq x Left/Right x Above/Below = 12) whose SD exceeds SD_THRESHOLD.
+  const byPatient = new Map();
   for (const r of results) {
-    if (!byPatient.has(r.patient)) byPatient.set(r.patient, { sortKey: r.sortKey, feats: [] });
-    byPatient.get(r.patient).feats.push(...r.feats);
+    if (!byPatient.has(r.patient)) byPatient.set(r.patient, { sortKey: r.sortKey, feats: [], hCount: 0 });
+    const rec = byPatient.get(r.patient);
+    rec.feats.push(...r.feats);
+    if (r.category && r.category.direction === "Horizontal" && r.sd) {
+      for (const side of ["Left", "Right"]) {
+        for (const reg of ["above", "below"]) {
+          const v = r.sd[side][reg];
+          if (Number.isFinite(v) && v > SD_THRESHOLD) rec.hCount++;
+        }
+      }
+    }
   }
 
   const rows = [];
-  for (const [patient, { sortKey, feats }] of byPatient) {
+  for (const [patient, { sortKey, feats, hCount }] of byPatient) {
     const f = {};
     for (const k of MODEL.order) f[k] = nanmean(feats.map((x) => x[k]));
     const prob = logisticProb(f);
@@ -400,10 +502,50 @@ function buildResults(results) {
     const flag2 = Number.isFinite(prob) && prob > 0.5;
     let verdict = "vNoData";
     if (hasData) verdict = flag1 && flag2 ? "vVeryLikely" : (flag1 || flag2 ? "vPossible" : "vLow");
-    rows.push({ patient, sortKey, ...f, prob, flag1, flag2, verdict });
+    // SD flag + index (index = hCount/2 + ML-risk% / 10; e.g. 33% -> 3.3)
+    const sdFlag = hCount > SD_FLAG_MIN;
+    const index = hCount / 2 + (Number.isFinite(prob) ? prob * 10 : 0);
+    rows.push({ patient, sortKey, ...f, prob, flag1, flag2, verdict, hCount, sdFlag, index });
   }
   rows.sort((a, b) => a.sortKey.localeCompare(b.sortKey, undefined, { numeric: true }));
   return rows;
+}
+
+// --- Off-center SD table (shown on toggle), same shape as the SD page ---
+function buildSdTable(results) {
+  const cats = new Map();
+  for (const r of results) if (r.category) cats.set(r.category.label, r.category);
+  const ordered = [...cats.values()].sort((a, b) => {
+    const ka = categorySortKey(a), kb = categorySortKey(b);
+    for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i] - kb[i];
+    return 0;
+  });
+  const columns = ordered.map((c) => c.label);
+  const redColumns = ordered.filter((c) => c.type === "R").map((c) => c.label);
+
+  const keyOf = new Map();
+  for (const r of results) if (!keyOf.has(r.patient)) keyOf.set(r.patient, r.sortKey || "");
+  const patients = [...keyOf.keys()].sort((a, b) =>
+    keyOf.get(a).localeCompare(keyOf.get(b), undefined, { numeric: true })
+  );
+
+  const cell = new Map(); // `${patient}||${side}||${Above|Below}` -> {label: SD}
+  const put = (key, label, v) => { if (!cell.has(key)) cell.set(key, {}); cell.get(key)[label] = v; };
+  for (const r of results) {
+    if (!r.category || !r.sd) continue;
+    for (const side of ["Left", "Right"]) {
+      put(`${r.patient}||${side}||Above`, r.category.label, r.sd[side].above);
+      put(`${r.patient}||${side}||Below`, r.category.label, r.sd[side].below);
+    }
+  }
+
+  const regionRows = [];
+  for (const patient of patients)
+    for (const side of ["Left", "Right"])
+      for (const reg of ["Above", "Below"])
+        regionRows.push({ patient, side, region: reg, values: cell.get(`${patient}||${side}||${reg}`) || {} });
+
+  return { columns, redColumns, patients, regionRows };
 }
 
 // ---------------------------------------------------------------------------
@@ -414,11 +556,11 @@ const fmt3 = (v) => (Number.isFinite(v) ? v.toFixed(3) : "");
 const pct = (v) => (Number.isFinite(v) ? Math.round(v * 100) + "%" : "");
 const yn = (b) => (b ? "✓" : "–");
 
-async function toExcelBlob(rows) {
+async function toExcelBlob(rows, sdTable) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("MG screening");
   const headers = ["Patient", "track_err", "gain", "corr2", "err_drop", "gain_drop",
-                   "ML risk", "Flag1 rule", "Flag2 ML", "Verdict"];
+                   "ML risk", "Flag1 rule", "Flag2 ML", "Verdict", "Horiz SD>3", "SD flag", "Index"];
   ws.addRow(headers).eachCell((cell) => {
     cell.font = { bold: true };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F2F2" } };
@@ -428,13 +570,39 @@ async function toExcelBlob(rows) {
   const vFill = { vVeryLikely: "FFF8CBCB", vPossible: "FFFCE7C6", vLow: "FFD8EFD8", vNoData: "FFEDEDED" };
   for (const r of rows) {
     const row = ws.addRow([r.patient, r.track_err, r.gain, r.corr2, r.err_drop, r.gain_drop,
-                           r.prob, r.flag1 ? "YES" : "no", r.flag2 ? "YES" : "no", vText[r.verdict]]);
+                           r.prob, r.flag1 ? "YES" : "no", r.flag2 ? "YES" : "no", vText[r.verdict],
+                           r.hCount, r.sdFlag ? "YES" : "no", r.index]);
     for (let i = 2; i <= 6; i++) row.getCell(i).numFmt = "0.0000";
     row.getCell(7).numFmt = "0%";
     row.getCell(10).fill = { type: "pattern", pattern: "solid", fgColor: { argb: vFill[r.verdict] } };
+    row.getCell(13).numFmt = "0.0";
   }
   headers.forEach((n, i) => (ws.getColumn(i + 1).width = Math.max(n.length, 10) + 2));
   ws.views = [{ state: "frozen", ySplit: 1 }];
+
+  // Second sheet: off-center SD detail (matches the toggled table).
+  if (sdTable) {
+    const ws2 = wb.addWorksheet("Off-center SD");
+    const h2 = ["Patient", "Eye", "Region", ...sdTable.columns];
+    ws2.addRow(h2).eachCell((cell, col) => {
+      const name = h2[col - 1], red = sdTable.redColumns.includes(name);
+      cell.font = { bold: true, color: { argb: red ? "FFFF0000" : "FF000000" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F2F2" } };
+      cell.alignment = { horizontal: "center" };
+    });
+    for (const row of sdTable.regionRows) {
+      const vals = [row.patient, row.side, row.region === "Above" ? "Above +2" : "Below -2"];
+      for (const label of sdTable.columns) {
+        const v = row.values[label];
+        vals.push(Number.isFinite(v) ? v : null);
+      }
+      const rr = ws2.addRow(vals);
+      for (let i = 4; i <= h2.length; i++) rr.getCell(i).numFmt = "0.0000";
+    }
+    h2.forEach((n, i) => (ws2.getColumn(i + 1).width = Math.max(n.length, 10) + 2));
+    ws2.views = [{ state: "frozen", xSplit: 3, ySplit: 1 }];
+  }
+
   const buffer = await wb.xlsx.writeBuffer();
   return new Blob([buffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -447,6 +615,8 @@ async function toExcelBlob(rows) {
 
 const els = {};
 let lastRows = null;
+let lastSdTable = null;
+let sdVisible = false;
 let lastWarnings = [];
 let statusState = null;
 
@@ -460,7 +630,7 @@ function renderResults(rows) {
   els.resultsHeading.style.display = "block";
   els.legend.style.display = "block";
   const H = [t("colPatient"), t("colErr"), t("colGain"), t("colFatigue"), t("colRisk"),
-            t("colFlag1"), t("colFlag2"), t("colVerdict")];
+            t("colFlag1"), t("colFlag2"), t("colVerdict"), t("colSdFlag"), t("colIndex")];
   let html = "<table><thead><tr>" + H.map((h) => `<th>${h}</th>`).join("") + "</tr></thead><tbody>";
   const cls = { vVeryLikely: "v-high", vPossible: "v-mid", vLow: "v-low", vNoData: "v-none" };
   for (const r of rows) {
@@ -473,9 +643,49 @@ function renderResults(rows) {
       + `<td>${yn(r.flag1)}</td>`
       + `<td>${yn(r.flag2)}</td>`
       + `<td class="verdict ${cls[r.verdict]}">${t(r.verdict)}</td>`
+      + `<td${r.sdFlag ? ' class="sd-flag"' : ""}>${yn(r.sdFlag)} (${r.hCount})</td>`
+      + `<td>${r.index.toFixed(1)}</td>`
       + `</tr>`;
   }
   els.results.innerHTML = html + "</tbody></table>";
+}
+
+// ---- Off-center SD detail table (toggled) ----
+function categoryLabelDisplay(label) {
+  if (currentLang === "ko")
+    return label.replace(/^Horizontal/, t("dirHorizontal")).replace(/^Vertical/, t("dirVertical"));
+  return label;
+}
+const sideDisplay = (s) => (s === "Left" ? t("eyeLeft") : t("eyeRight"));
+const regionDisplay = (r) => (r === "Above" ? t("regionAbove") : t("regionBelow"));
+
+function renderSdTable(table) {
+  if (!table) { els.sdResults.innerHTML = ""; return; }
+  const catHeaders = table.columns.map(categoryLabelDisplay);
+  const redSet = new Set(table.redColumns.map(categoryLabelDisplay));
+  let html = "<table><thead><tr>";
+  html += `<th>${t("colPatient")}</th><th>${t("colEye")}</th><th>${t("colRegion")}</th>`;
+  for (const h of catHeaders) html += `<th${redSet.has(h) ? ' class="red"' : ""}>${h}</th>`;
+  html += "</tr></thead><tbody>";
+  let prev = null;
+  for (const row of table.regionRows) {
+    const gc = row.patient !== prev && prev !== null ? ' class="group-top"' : "";
+    prev = row.patient;
+    html += `<tr${gc}><td class="patient">${row.patient}</td><td>${sideDisplay(row.side)}</td><td>${regionDisplay(row.region)}</td>`;
+    for (const label of table.columns) {
+      const red = table.redColumns.includes(label) ? ' class="red"' : "";
+      html += `<td${red}>${fmt3(row.values[label])}</td>`;
+    }
+    html += "</tr>";
+  }
+  els.sdResults.innerHTML = html + "</tbody></table>";
+}
+
+function applySdVisibility() {
+  const on = sdVisible && lastSdTable;
+  els.sdResults.style.display = on ? "block" : "none";
+  els.sdHeading.style.display = on ? "block" : "none";
+  els.sdToggle.textContent = sdVisible ? t("sdToggleHide") : t("sdToggleShow");
 }
 
 function renderWarnings(warnings) {
@@ -506,15 +716,21 @@ async function handleFiles(fileList) {
 
   if (results.length === 0) {
     setStatus({ type: "noValid" });
-    lastRows = null;
-    renderResults(null);
+    lastRows = null; lastSdTable = null;
+    renderResults(null); renderSdTable(null);
+    els.sdToggle.style.display = "none";
+    applySdVisibility();
     els.download.disabled = true;
     return;
   }
   const rows = buildResults(results);
   lastRows = rows;
+  lastSdTable = buildSdTable(results);
   setStatus({ type: "processed", n: results.length, p: rows.length });
   renderResults(rows);
+  renderSdTable(lastSdTable);
+  els.sdToggle.style.display = "inline-block";
+  applySdVisibility();
   els.download.disabled = false;
 }
 
@@ -526,7 +742,7 @@ function stamp() {
 
 async function downloadExcel() {
   if (!lastRows) return;
-  const blob = await toExcelBlob(lastRows);
+  const blob = await toExcelBlob(lastRows, lastSdTable);
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -545,6 +761,8 @@ function applyTranslations() {
   renderStatus();
   renderWarnings(lastWarnings);
   renderResults(lastRows);
+  renderSdTable(lastSdTable);
+  applySdVisibility();
 }
 
 const setLang = (lang) => { currentLang = lang; applyTranslations(); };
@@ -559,12 +777,16 @@ window.addEventListener("DOMContentLoaded", () => {
   els.status = document.getElementById("status");
   els.download = document.getElementById("downloadBtn");
   els.langToggle = document.getElementById("langToggle");
+  els.sdToggle = document.getElementById("sdToggle");
+  els.sdHeading = document.getElementById("sdHeading");
+  els.sdResults = document.getElementById("sdResults");
 
   applyTranslations();
 
   els.langToggle.addEventListener("click", () => setLang(currentLang === "en" ? "ko" : "en"));
   els.input.addEventListener("change", (e) => handleFiles(e.target.files));
   els.download.addEventListener("click", downloadExcel);
+  els.sdToggle.addEventListener("click", () => { sdVisible = !sdVisible; applySdVisibility(); });
 
   ["dragenter", "dragover"].forEach((ev) =>
     els.drop.addEventListener(ev, (e) => { e.preventDefault(); els.drop.classList.add("hover"); }));

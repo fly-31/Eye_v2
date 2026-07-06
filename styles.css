@@ -94,6 +94,23 @@ button.primary {
 button.primary:hover:not(:disabled) { background: var(--accent-hover); }
 button.primary:disabled { background: #9db4e0; cursor: not-allowed; }
 
+/* Toggle button for the off-center SD detail table */
+.toggle-btn {
+  margin-top: 1.5rem;
+  background: var(--card);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: .5rem 1rem;
+  font-size: .9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.toggle-btn:hover { background: var(--accent); color: #fff; }
+/* Highlight a checked SD-flag cell */
+td.sd-flag { background: #fdecec; color: #b30000; font-weight: 700; }
+
 .results { overflow-x: auto; margin-top: .5rem; }
 table {
   border-collapse: collapse; width: 100%; background: var(--card);

@@ -1,10 +1,12 @@
 /*
- * Off-Center Eye Movement R² — browser logic.
+ * Off-Center Eye Position — standard deviation ("tired eyes") — browser logic.
  *
- * Splits each recording's eye positions into two off-center groups:
+ * Uses only the SECOND HALF of each recording (by time), then splits the eye
+ * positions into two off-center groups:
  *   "Above" = samples where eye value > +2,  "Below" = samples where eye < -2
- * (the ±2 range is treated as "center" and ignored). For each group it computes
- * R² of eye position vs. Time — i.e. how the eye behaves once it is off-center.
+ * (the ±2 range is treated as "center" and ignored). For each group it reports
+ * the STANDARD DEVIATION of the eye position — how much the eye scatters/wanders
+ * while held off-center once tired.
  *
  * Correct channel per direction: Horizontal -> LH/RH, Vertical -> LV/RV.
  * Everything runs client-side. No server, no upload leaves the machine.
@@ -21,7 +23,7 @@ const FREQUENCIES = ["0.5", "0.75", "1"];
 const REQUIRED_COLUMNS = ["Time(sec)", "LH", "RH", "LV", "RV"];
 
 const SIG_FIGS = 4;
-const EXCEL_NUM_FMT = "0.0000000";
+const EXCEL_NUM_FMT = "0.0000";
 
 function channelsFor(direction) {
   return direction === "Vertical"
@@ -37,12 +39,13 @@ const I18N = {
   en: {
     langButton: "한국어",
     navLabel: "🩺 MG screening →",
-    title: "👁️ Off-Center Eye Movement R² (tired eyes)",
+    title: "👁️ Off-Center Eye Position — Std Dev (tired eyes)",
     subtitle:
       "Upload eye-tracking recordings; the tool uses only the <strong>second half</strong> " +
       "of each recording (tired eyes) and, within it, keeps only the <strong>off-center</strong> " +
       "samples (eye position <strong>above +2</strong> or <strong>below −2</strong>, " +
-      "ignoring the ±2 center), then computes <strong>R² vs. time</strong> for each group. " +
+      "ignoring the ±2 center), then reports the <strong>standard deviation</strong> of the eye " +
+      "position for each group (how much it wanders). " +
       "Everything runs in your browser; nothing is uploaded to a server.",
     infoSummary: "ℹ️ How to use / required data format",
     step1:
@@ -66,7 +69,7 @@ const I18N = {
     dropSub: "or click to browse",
     downloadBtn: "⬇️ Download Excel spreadsheet",
     redNote: "🔴 Red columns are <strong>R-type</strong> categories.",
-    regionHeading: "Off-center R² — second half only (Above = eye > +2, Below = eye < −2, vs. time)",
+    regionHeading: "Off-center standard deviation — second half only (Above = eye > +2, Below = eye < −2)",
     colPatient: "Patient",
     colEye: "Eye",
     colRegion: "Region",
@@ -88,13 +91,13 @@ const I18N = {
   ko: {
     langButton: "English",
     navLabel: "🩺 MG 선별 →",
-    title: "👁️ 중심 이탈 안구 운동 R² (피로한 눈)",
+    title: "👁️ 중심 이탈 안구 위치 — 표준편차 (피로한 눈)",
     subtitle:
       "안구 추적 기록을 업로드하면 각 기록의 <strong>후반부</strong>(피로한 눈)만 사용하고, " +
       "그 안에서 <strong>중심을 벗어난</strong> 샘플" +
       "(눈 위치가 <strong>+2 초과</strong> 또는 <strong>−2 미만</strong>, ±2 중심 범위는 제외)만 " +
-      "남겨 각 그룹의 <strong>시간 대비 R²</strong>를 계산합니다. 모든 계산은 브라우저에서 " +
-      "실행되며 서버로 전송되지 않습니다.",
+      "남겨 각 그룹의 눈 위치 <strong>표준편차</strong>(얼마나 흔들리는지)를 계산합니다. 모든 계산은 " +
+      "브라우저에서 실행되며 서버로 전송되지 않습니다.",
     infoSummary: "ℹ️ 사용 방법 / 필수 데이터 형식",
     step1:
       "파일은 이 템플릿의 열 형식과 일치해야 합니다: " +
@@ -117,7 +120,7 @@ const I18N = {
     dropSub: "또는 클릭하여 파일 선택",
     downloadBtn: "⬇️ Excel 스프레드시트 다운로드",
     redNote: "🔴 빨간색 열은 <strong>R 유형</strong> 카테고리입니다.",
-    regionHeading: "중심 이탈 R² — 후반부만 (Above = 눈 > +2, Below = 눈 < −2, 시간 대비)",
+    regionHeading: "중심 이탈 표준편차 — 후반부만 (Above = 눈 > +2, Below = 눈 < −2)",
     colPatient: "환자",
     colEye: "눈",
     colRegion: "구간",
@@ -243,29 +246,20 @@ function readChannels(bytes) {
   return cols;
 }
 
-/** R² (squared Pearson corr) of x vs y over points where finite AND keep(x,y). */
-function rSquaredWhere(x, y, keep) {
-  let n = 0, sx = 0, sy = 0;
-  for (let i = 0; i < x.length; i++) {
+/** Population standard deviation of the eye values y over points where finite
+ *  AND keep(x, y). */
+function stdWhere(x, y, keep) {
+  let n = 0, s = 0, s2 = 0;
+  for (let i = 0; i < y.length; i++) {
     if (Number.isFinite(x[i]) && Number.isFinite(y[i]) && keep(x[i], y[i])) {
-      n++; sx += x[i]; sy += y[i];
+      n++; s += y[i]; s2 += y[i] * y[i];
     }
   }
   if (n < 2) return NaN;
-  const mx = sx / n, my = sy / n;
-  let sxy = 0, sxx = 0, syy = 0;
-  for (let i = 0; i < x.length; i++) {
-    if (Number.isFinite(x[i]) && Number.isFinite(y[i]) && keep(x[i], y[i])) {
-      const dx = x[i] - mx, dy = y[i] - my;
-      sxy += dx * dy; sxx += dx * dx; syy += dy * dy;
-    }
-  }
-  if (sxx === 0 || syy === 0) return NaN;
-  const r = sxy / Math.sqrt(sxx * syy);
-  return r * r;
+  return Math.sqrt(Math.max(s2 / n - (s / n) ** 2, 0));
 }
 
-/** {above, below} R² for one channel: eye vs time over off-center samples,
+/** {above, below} standard deviation of eye position over off-center samples,
  *  using ONLY the second half of the recording (by time) — "tired eyes".
  *  The first half is discarded before splitting into Above (+2) / Below (-2).
  */
@@ -280,8 +274,8 @@ function computeChannel(time, ch) {
   if (!Number.isFinite(tmin)) return { above: NaN, below: NaN };
   const mid = (tmin + tmax) / 2; // keep only samples after the midpoint
   return {
-    above: rSquaredWhere(time, ch, (tt, ee) => tt > mid && ee > CENTER),
-    below: rSquaredWhere(time, ch, (tt, ee) => tt > mid && ee < -CENTER),
+    above: stdWhere(time, ch, (tt, ee) => tt > mid && ee > CENTER),
+    below: stdWhere(time, ch, (tt, ee) => tt > mid && ee < -CENTER),
   };
 }
 
@@ -434,7 +428,7 @@ function styleHeaderCell(cell, name, redColumns) {
 
 async function toExcelBlob(table) {
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("Off-center R²");
+  const ws = wb.addWorksheet("Off-center SD");
   const headers = ["Patient", "Eye", "Region", ...table.columns];
   ws.addRow(headers).eachCell((cell, col) =>
     styleHeaderCell(cell, headers[col - 1], table.redColumns)
@@ -540,7 +534,7 @@ async function downloadExcel() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `Eye_offcenter_R2_${stamp()}.xlsx`;
+  a.download = `Eye_offcenter_SD_${stamp()}.xlsx`;
   a.click();
   URL.revokeObjectURL(url);
 }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Off-Center Eye Movement R²</title>
+  <title>Off-Center Eye Position — Std Dev</title>
   <link rel="stylesheet" href="styles.css?v=2" />
 </head>
 <body>
@@ -12,9 +12,9 @@
 
   <main>
     <header>
-      <h1 data-i18n="title">👁️ Off-Center Eye Movement R²</h1>
+      <h1 data-i18n="title">👁️ Off-Center Eye Position — Std Dev (tired eyes)</h1>
       <p class="subtitle" data-i18n-html="subtitle">
-        Keeps only off-center samples (eye &gt; +2 or &lt; −2) and computes R² vs. time.
+        Second half only; keeps off-center samples (eye &gt; +2 or &lt; −2) and reports their standard deviation.
       </p>
     </header>
 
@@ -56,7 +56,7 @@
     </div>
 
     <h2 id="regionHeading" class="table-heading" style="display:none" data-i18n="regionHeading">
-      Off-center R²
+      Off-center standard deviation
     </h2>
     <div id="regionResults" class="results"></div>
   </main>
@@ -69,6 +69,6 @@
   <script>
     window.ExcelJS || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"><\/script>');
   </script>
-  <script src="offcenter.js?v=2"></script>
+  <script src="offcenter.js?v=3"></script>
 </body>
 </html>
